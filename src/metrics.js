@@ -388,6 +388,64 @@ FROM sys.dm_os_sys_memory`,
   },
 };
 
+const mssql_index_fragmentation = {
+  metrics: {
+    mssql_index_fragmentation: new client.Gauge({
+      name: "mssql_index_fragmentation",
+      help: "Index fragmentation percentage for indexes with more than 100 pages",
+      labelNames: ["database", "schema", "table", "index"],
+    }),
+  },
+  query: `
+    DECLARE @SQL NVARCHAR(MAX) = '';
+    SELECT @SQL =
+      CASE
+        WHEN @SQL = '' THEN ''
+        ELSE @SQL + ' UNION ALL '
+      END + '
+      SELECT
+        ''' + name + ''' as database_name,
+        s.name as schema_name,
+        t.name as table_name,
+        i.name as index_name,
+        ddips.avg_fragmentation_in_percent
+      FROM [' + name + '].sys.dm_db_index_physical_stats (DB_ID(''' + name + '''), NULL, NULL, NULL, NULL) AS ddips
+        INNER JOIN [' + name + '].sys.tables t on t.object_id = ddips.object_id
+        INNER JOIN [' + name + '].sys.schemas s on t.schema_id = s.schema_id
+        INNER JOIN [' + name + '].sys.indexes i ON i.object_id = ddips.object_id AND ddips.index_id = i.index_id
+      WHERE ddips.database_id = DB_ID(''' + name + ''')
+        AND i.name IS NOT NULL
+        AND ddips.page_count > 100'
+    FROM sys.databases
+    WHERE database_id > 4 -- Skip system databases
+      AND state = 0; -- Only online databases
+    EXEC sp_executesql @SQL;
+  `,
+  collect: (rows, metrics) => {
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i];
+      const database = row[0].value;
+      const schema = row[1].value;
+      const table = row[2].value;
+      const index = row[3].value;
+      const fragmentation = row[4].value;
+      metricsLog(
+        "Fetched index fragmentation",
+        "database:", database,
+        "schema:", schema,
+        "table:", table,
+        "index:", index,
+        "fragmentation:", fragmentation
+      );
+
+      metrics.mssql_index_fragmentation.set(
+        { database, schema, table, index },
+        fragmentation
+      );
+    }
+  },
+};
+
 const entries = {
   mssql_up,
   mssql_product_version,
@@ -406,6 +464,7 @@ const entries = {
   mssql_transactions,
   mssql_os_process_memory,
   mssql_os_sys_memory,
+  mssql_index_fragmentation,
 };
 
 module.exports = {
