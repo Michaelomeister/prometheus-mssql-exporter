@@ -444,6 +444,8 @@ const mssql_index_fragmentation = {
       );
     }
   },
+  asyncMetric: true,
+  timeoutMs: 3 * 60 * 1000, // 3 minute timeout
 };
 
 const entries = {

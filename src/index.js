@@ -88,6 +88,9 @@ async function connect() {
 async function measure(connection, collector, name) {
   return new Promise((resolve) => {
     queriesLog(`Executing metric ${name} query: ${collector.query}`);
+    // Set timeout based on whether this is an async metric or standard metric
+    const timeout = collector.asyncMetric ? collector.timeoutMs : 15000; // 15s default timeout
+
     let request = new Request(collector.query, (error, rowCount, rows) => {
       if (!error) {
         queriesLog(`Retrieved metric ${name} rows (${rows.length}): ${JSON.stringify(rows, null, 2)}`);
@@ -107,6 +110,9 @@ async function measure(connection, collector, name) {
         resolve();
       }
     });
+
+    // Set custom timeout for the request
+    request.setTimeout(timeout);
     connection.execSql(request);
   });
 }
@@ -119,9 +125,40 @@ async function measure(connection, collector, name) {
  * @returns Promise of execution (no value returned)
  */
 async function collect(connection) {
-  for (const [metricName, metric] of Object.entries(entries)) {
-    await measure(connection, metric, metricName);
+  const standardMetrics = [];
+  const asyncMetrics = [];
+
+  // Separate async metrics from standard metrics
+  Object.entries(entries).forEach(([key, entry]) => {
+    if (entry.asyncMetric) {
+      asyncMetrics.push({ key, entry });
+    } else {
+      standardMetrics.push({ key, entry });
+    }
+  });
+
+  // Process standard metrics first
+  for (const { key, entry } of standardMetrics) {
+    await measure(connection, entry, key);
   }
+
+  // Process async metrics in the background
+  asyncMetrics.forEach(({ key, entry }) => {
+    // Create a separate connection for async metrics
+    connect().then(asyncConnection => {
+      measure(asyncConnection, entry, key)
+        .then(() => {
+          asyncConnection.close();
+          metricsLog(`Async metric ${key} completed`);
+        })
+        .catch(error => {
+          asyncConnection.close();
+          console.error(`Error processing async metric ${key}:`, error);
+        });
+    }).catch(error => {
+      console.error(`Error creating connection for async metric ${key}:`, error);
+    });
+  });
 }
 
 app.get("/", (req, res) => {
