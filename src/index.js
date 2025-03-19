@@ -149,7 +149,7 @@ async function collect(connection) {
       measure(asyncConnection, entry, key)
         .then(() => {
           asyncConnection.close();
-          metricsLog(`Async metric ${key} completed`);
+          console.log(`Async metric ${key} completed`);
         })
         .catch(error => {
           asyncConnection.close();
