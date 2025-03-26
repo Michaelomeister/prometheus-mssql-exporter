@@ -163,7 +163,7 @@ const mssql_log_growths = {
     }),
   },
   query: `SELECT rtrim(instance_name), cntr_value
-FROM sys.dm_os_performance_counters 
+FROM sys.dm_os_performance_counters
 WHERE counter_name = 'Log Growths' and instance_name <> '_Total'`,
   collect: (rows, metrics) => {
     for (let i = 0; i < rows.length; i++) {
@@ -306,7 +306,7 @@ const mssql_batch_requests = {
     }),
   },
   query: `SELECT TOP 1 cntr_value
-FROM sys.dm_os_performance_counters 
+FROM sys.dm_os_performance_counters
 WHERE counter_name = 'Batch Requests/sec'`,
   collect: (rows, metrics) => {
     for (let i = 0; i < rows.length; i++) {
@@ -345,7 +345,7 @@ const mssql_os_process_memory = {
     mssql_page_fault_count: new client.Gauge({ name: "mssql_page_fault_count", help: "Number of page faults since last restart" }),
     mssql_memory_utilization_percentage: new client.Gauge({ name: "mssql_memory_utilization_percentage", help: "Percentage of memory utilization" }),
   },
-  query: `SELECT page_fault_count, memory_utilization_percentage 
+  query: `SELECT page_fault_count, memory_utilization_percentage
 FROM sys.dm_os_process_memory`,
   collect: (rows, metrics) => {
     const page_fault_count = rows[0][0].value;
@@ -393,7 +393,7 @@ const mssql_index_fragmentation = {
     mssql_index_fragmentation: new client.Gauge({
       name: "mssql_index_fragmentation",
       help: "Index fragmentation percentage for indexes with more than 100 pages",
-      labelNames: ["database", "schema", "table", "index"],
+      labelNames: ["database", "schema", "table", "index", "pages"],
     }),
   },
   query: `
@@ -408,6 +408,7 @@ const mssql_index_fragmentation = {
         s.name as schema_name,
         t.name as table_name,
         i.name as index_name,
+        ddips.page_count,
         ddips.avg_fragmentation_in_percent
       FROM [' + name + '].sys.dm_db_index_physical_stats (DB_ID(''' + name + '''), NULL, NULL, NULL, NULL) AS ddips
         INNER JOIN [' + name + '].sys.tables t on t.object_id = ddips.object_id
@@ -428,18 +429,20 @@ const mssql_index_fragmentation = {
       const schema = row[1].value;
       const table = row[2].value;
       const index = row[3].value;
-      const fragmentation = row[4].value;
+      const pages = row[4].value;
+      const fragmentation = row[5].value;
       metricsLog(
         "Fetched index fragmentation",
         "database:", database,
         "schema:", schema,
         "table:", table,
         "index:", index,
+        "pages:", pages,
         "fragmentation:", fragmentation
       );
 
       metrics.mssql_index_fragmentation.set(
-        { database, schema, table, index },
+        { database, schema, table, index, pages: pages.toString() },
         fragmentation
       );
     }
