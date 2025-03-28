@@ -420,9 +420,13 @@ const mssql_index_fragmentation = {
     FROM sys.databases
     WHERE database_id > 4 -- Skip system databases
       AND state = 0; -- Only online databases
+
     EXEC sp_executesql @SQL;
   `,
   collect: (rows, metrics) => {
+    // Reset the metric before collecting new values
+    metrics.mssql_index_fragmentation.reset();
+
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i];
       const database = row[0].value;
