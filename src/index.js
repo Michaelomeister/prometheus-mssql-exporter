@@ -7,7 +7,7 @@ const Request = require("tedious").Request;
 const app = require("express")();
 const client = require("prom-client");
 
-const { entries } = require("./metrics");
+const { entries, register } = require("./metrics");
 
 let config = {
   connect: {
@@ -166,14 +166,14 @@ app.get("/", (req, res) => {
 });
 
 app.get("/metrics", async (req, res) => {
-  res.contentType(client.register.contentType);
+  res.contentType(register.contentType);
 
   try {
     appLog("Received /metrics request");
     let connection = await connect();
     await collect(connection);
     connection.close();
-    res.send(client.register.metrics());
+    res.send(await register.metrics());
     appLog("Successfully processed /metrics request");
   } catch (error) {
     // error connecting
@@ -181,7 +181,7 @@ app.get("/metrics", async (req, res) => {
     const mssqlUp = entries.mssql_up.metrics.mssql_up;
     mssqlUp.set(0);
     res.header("X-Error", error.message || error);
-    res.send(client.register.getSingleMetricAsString(mssqlUp.name));
+    res.send(await register.getSingleMetricAsString(mssqlUp.name));
   }
 });
 

@@ -6,13 +6,16 @@ const metricsLog = require("debug")("metrics");
 const client = require("prom-client");
 const { productVersionParse } = require("./utils");
 
+// Create a new registry
+const register = new client.Registry();
+
 const mssql_up = {
   metrics: {
     mssql_up: new client.Gauge({ name: "mssql_up", help: "UP Status" }),
   },
   query: "SELECT 1",
   collect: (rows, metrics) => {
-    let mssql_up = rows[0][0].value;
+    let mssql_up = Number(rows[0][0].value);
     metricsLog("Fetched status of instance", mssql_up);
     metrics.mssql_up.set(mssql_up);
   },
@@ -29,7 +32,7 @@ const mssql_product_version = {
     let v = productVersionParse(rows[0][0].value);
     const mssql_product_version = v.major + "." + v.minor;
     metricsLog("Fetched version of instance", mssql_product_version);
-    metrics.mssql_product_version.set(mssql_product_version);
+    metrics.mssql_product_version.set(Number(mssql_product_version));
   },
 };
 
@@ -57,7 +60,7 @@ GROUP BY DB_NAME(sP.dbid)`,
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i];
       const database = row[0].value;
-      const mssql_connections = row[1].value;
+      const mssql_connections = Number(row[1].value);
       metricsLog("Fetched number of connections for database", database, mssql_connections);
       metrics.mssql_connections.set({ database, state: "current" }, mssql_connections);
     }
@@ -82,7 +85,7 @@ GROUP BY host_name, dbid`,
       const row = rows[i];
       const client = row[0].value;
       const database = row[1].value;
-      const mssql_client_connections = row[2].value;
+      const mssql_client_connections = Number(row[2].value);
       metricsLog("Fetched number of connections for client", client, database, mssql_client_connections);
       metrics.mssql_client_connections.set({ client, database }, mssql_client_connections);
     }
@@ -100,7 +103,7 @@ const mssql_deadlocks = {
 FROM sys.dm_os_performance_counters
 WHERE counter_name = 'Number of Deadlocks/sec' AND instance_name = '_Total'`,
   collect: (rows, metrics) => {
-    const mssql_deadlocks = rows[0][0].value;
+    const mssql_deadlocks = Number(rows[0][0].value);
     metricsLog("Fetched number of deadlocks/sec", mssql_deadlocks);
     metrics.mssql_deadlocks_per_second.set(mssql_deadlocks);
   },
@@ -114,7 +117,7 @@ const mssql_user_errors = {
 FROM sys.dm_os_performance_counters
 WHERE counter_name = 'Errors/sec' AND instance_name = 'User Errors'`,
   collect: (rows, metrics) => {
-    const mssql_user_errors = rows[0][0].value;
+    const mssql_user_errors = Number(rows[0][0].value);
     metricsLog("Fetched number of user errors/sec", mssql_user_errors);
     metrics.mssql_user_errors.set(mssql_user_errors);
   },
@@ -128,7 +131,7 @@ const mssql_kill_connection_errors = {
 FROM sys.dm_os_performance_counters
 WHERE counter_name = 'Errors/sec' AND instance_name = 'Kill Connection Errors'`,
   collect: (rows, metrics) => {
-    const mssql_kill_connection_errors = rows[0][0].value;
+    const mssql_kill_connection_errors = Number(rows[0][0].value);
     metricsLog("Fetched number of kill connection errors/sec", mssql_kill_connection_errors);
     metrics.mssql_kill_connection_errors.set(mssql_kill_connection_errors);
   },
@@ -147,7 +150,7 @@ const mssql_database_state = {
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i];
       const database = row[0].value;
-      const mssql_database_state = row[1].value;
+      const mssql_database_state = Number(row[1].value);
       metricsLog("Fetched state for database", database, mssql_database_state);
       metrics.mssql_database_state.set({ database }, mssql_database_state);
     }
@@ -169,7 +172,7 @@ WHERE counter_name = 'Log Growths' and instance_name <> '_Total'`,
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i];
       const database = row[0].value;
-      const mssql_log_growths = row[1].value;
+      const mssql_log_growths = Number(row[1].value);
       metricsLog("Fetched number log growths for database", database, mssql_log_growths);
       metrics.mssql_log_growths.set({ database }, mssql_log_growths);
     }
@@ -192,7 +195,7 @@ const mssql_database_filesize = {
       const logicalname = row[1].value;
       const type = row[2].value;
       const filename = row[3].value;
-      const mssql_database_filesize = row[4].value;
+      const mssql_database_filesize = Number(row[4].value);
       metricsLog(
         "Fetched size of files for database ",
         database,
@@ -236,11 +239,11 @@ const mssql_buffer_manager = {
     `,
   collect: (rows, metrics) => {
     const row = rows[0];
-    const page_read = row[0].value;
-    const page_write = row[1].value;
-    const page_life_expectancy = row[2].value;
-    const lazy_write_total = row[3].value;
-    const page_checkpoint_total = row[4].value;
+    const page_read = Number(row[0].value);
+    const page_write = Number(row[1].value);
+    const page_life_expectancy = Number(row[2].value);
+    const lazy_write_total = Number(row[3].value);
+    const page_checkpoint_total = Number(row[4].value);
     metricsLog(
       "Fetched the Buffer Manager",
       "page_read",
@@ -283,11 +286,11 @@ GROUP BY a.database_id`,
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i];
       const database = row[0].value;
-      const read = row[1].value;
-      const write = row[2].value;
-      const stall = row[3].value;
-      const queued_read = row[4].value;
-      const queued_write = row[5].value;
+      const read = Number(row[1].value);
+      const write = Number(row[2].value);
+      const stall = Number(row[3].value);
+      const queued_read = Number(row[4].value);
+      const queued_write = Number(row[5].value);
       metricsLog("Fetched number of stalls for database", database, "read", read, "write", write, "queued_read", queued_read, "queued_write", queued_write);
       metrics.mssql_io_stall_total.set({ database }, stall);
       metrics.mssql_io_stall.set({ database, type: "read" }, read);
@@ -311,7 +314,7 @@ WHERE counter_name = 'Batch Requests/sec'`,
   collect: (rows, metrics) => {
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i];
-      const mssql_batch_requests = row[0].value;
+      const mssql_batch_requests = Number(row[0].value);
       metricsLog("Fetched number of batch requests per second", mssql_batch_requests);
       metrics.mssql_batch_requests.set(mssql_batch_requests);
     }
@@ -333,7 +336,7 @@ WHERE counter_name = 'Transactions/sec' AND instance_name <> '_Total'`,
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i];
       const database = row[0].value;
-      const transactions = row[1].value;
+      const transactions = Number(row[1].value);
       metricsLog("Fetched number of transactions per second", database, transactions);
       metrics.mssql_transactions.set({ database }, transactions);
     }
@@ -348,8 +351,8 @@ const mssql_os_process_memory = {
   query: `SELECT page_fault_count, memory_utilization_percentage
 FROM sys.dm_os_process_memory`,
   collect: (rows, metrics) => {
-    const page_fault_count = rows[0][0].value;
-    const memory_utilization_percentage = rows[0][1].value;
+    const page_fault_count = Number(rows[0][0].value);
+    const memory_utilization_percentage = Number(rows[0][1].value);
     metricsLog("Fetched page fault count", page_fault_count);
     metrics.mssql_page_fault_count.set(page_fault_count);
     metrics.mssql_memory_utilization_percentage.set(memory_utilization_percentage);
@@ -366,10 +369,11 @@ const mssql_os_sys_memory = {
   query: `SELECT total_physical_memory_kb, available_physical_memory_kb, total_page_file_kb, available_page_file_kb 
 FROM sys.dm_os_sys_memory`,
   collect: (rows, metrics) => {
-    const mssql_total_physical_memory_kb = rows[0][0].value;
-    const mssql_available_physical_memory_kb = rows[0][1].value;
-    const mssql_total_page_file_kb = rows[0][2].value;
-    const mssql_available_page_file_kb = rows[0][3].value;
+    const mssql_total_physical_memory_kb = Number(rows[0][0].value);
+    const mssql_available_physical_memory_kb = Number(rows[0][1].value);
+    const mssql_total_page_file_kb = Number(rows[0][2].value);
+    const mssql_available_page_file_kb = Number(rows[0][3].value);
+    
     metricsLog(
       "Fetched system memory information",
       "Total physical memory",
@@ -381,6 +385,7 @@ FROM sys.dm_os_sys_memory`,
       "Available page file",
       mssql_available_page_file_kb
     );
+    
     metrics.mssql_total_physical_memory_kb.set(mssql_total_physical_memory_kb);
     metrics.mssql_available_physical_memory_kb.set(mssql_available_physical_memory_kb);
     metrics.mssql_total_page_file_kb.set(mssql_total_page_file_kb);
@@ -424,17 +429,17 @@ const mssql_index_fragmentation = {
     EXEC sp_executesql @SQL;
   `,
   collect: (rows, metrics) => {
-    // Reset the metric before collecting new values
     metrics.mssql_index_fragmentation.reset();
-
+    
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i];
       const database = row[0].value;
       const schema = row[1].value;
       const table = row[2].value;
       const index = row[3].value;
-      const pages = row[4].value;
-      const fragmentation = row[5].value;
+      const pages = Number(row[4].value);
+      const fragmentation = Number(row[5].value);
+      
       metricsLog(
         "Fetched index fragmentation",
         "database:", database,
@@ -476,6 +481,14 @@ const entries = {
   mssql_index_fragmentation,
 };
 
+// At the end, register all metrics
+Object.values(entries).forEach(entry => {
+  Object.values(entry.metrics).forEach(metric => {
+    register.registerMetric(metric);
+  });
+});
+
 module.exports = {
   entries,
+  register
 };
